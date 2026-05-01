@@ -1,0 +1,148 @@
+menu "Example Configuration"
+
+    menu "Example IO Configuration"
+        config EXAMPLE_PA_CTRL_IO
+            int "Power Amplifier control IO"
+            default 53 if IDF_TARGET_ESP32P4
+            default -1
+            help
+                Set GPIO number for PA control. Set -1 to disable PA control.
+
+        config EXAMPLE_I2C_SDA_IO
+            int "I2C SDA IO"
+            default 17 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+            default 9 if IDF_TARGET_ESP32H2
+            default 7
+
+        config EXAMPLE_I2C_SCL_IO
+            int "I2C SCL IO"
+            default 16 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+            default 8 if IDF_TARGET_ESP32H2 || IDF_TARGET_ESP32P4
+            default 6
+
+        config EXAMPLE_I2S_MCLK_IO
+            int "I2S MCLK IO"
+            default 13 if IDF_TARGET_ESP32P4
+            default 0
+
+        config EXAMPLE_I2S_BCLK_IO
+            int "I2S BCLK IO"
+            default 12 if IDF_TARGET_ESP32P4
+            default 4
+
+        config EXAMPLE_I2S_WS_IO
+            int "I2S WS IO"
+            default 10 if IDF_TARGET_ESP32P4
+            default 5
+
+        config EXAMPLE_I2S_DIN_IO
+            int "I2S DIN IO"
+            default 19 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+            default 11 if IDF_TARGET_ESP32P4
+            default 3
+
+        config EXAMPLE_I2S_DOUT_IO
+            int "I2S DOUT IO"
+            default 18 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+            default 9 if IDF_TARGET_ESP32P4
+            default 2
+
+    endmenu
+
+    choice EXAMPLE_MODE
+        prompt "Example mode"
+        default EXAMPLE_MODE_MUSIC
+        help
+            Select example work mode
+
+        config EXAMPLE_MODE_MUSIC
+            bool "music"
+        config EXAMPLE_MODE_ECHO
+            depends on !EXAMPLE_BSP
+            bool "echo"
+    endchoice
+
+    config EXAMPLE_MIC_GAIN
+        int "Set MIC gain (unit: dB)"
+        depends on EXAMPLE_MODE_ECHO
+        default 18
+        help
+            Select mic gain for echo mode
+
+    config EXAMPLE_VOICE_VOLUME
+        int "Voice volume"
+        range 0 100
+        default 60
+        help
+            Set voice volume
+endmenu
+
+menu "MWESP32M0 Driver Configuration"
+    config MW_RUN_DRIVER_TESTS_ON_BOOT
+        bool "Run board driver tests in app_main"
+        default n
+        help
+            If enabled, run all board-level driver test cases at boot.
+
+    menu "Driver test I2C"
+        config MW_TEST_I2C_PORT
+            int "I2C port for driver test"
+            range 0 1
+            default 0
+
+        config MW_TEST_I2C_SDA_IO
+            int "I2C SDA IO for driver test"
+            default 17
+
+        config MW_TEST_I2C_SCL_IO
+            int "I2C SCL IO for driver test"
+            default 16
+    endmenu
+
+    menu "NS4150"
+        config MW_NS4150_CTRL_IO
+            int "NS4150 CTRL IO (-1 means not controlled by GPIO)"
+            default -1
+
+        config MW_NS4150_ACTIVE_HIGH
+            bool "NS4150 CTRL active high"
+            default y
+    endmenu
+
+    menu "W25Q128 SPI"
+        config MW_W25Q128_SPI_HOST
+            int "SPI host id (1=SPI2_HOST, 2=SPI3_HOST)"
+            range 1 2
+            default 2
+
+        config MW_W25Q128_MOSI_IO
+            int "W25Q128 MOSI IO"
+            default 11
+
+        config MW_W25Q128_MISO_IO
+            int "W25Q128 MISO IO"
+            default 13
+
+        config MW_W25Q128_SCLK_IO
+            int "W25Q128 SCLK IO"
+            default 12
+
+        config MW_W25Q128_CS_IO
+            int "W25Q128 CS IO"
+            default 10
+
+        config MW_W25Q128_SPI_HZ
+            int "W25Q128 SPI frequency(Hz)"
+            range 100000 40000000
+            default 10000000
+    endmenu
+endmenu
+
+menu "AI Agent Test Configuration"
+    config AI_AGENT_TEST_ONLINE_CHAT
+        bool "Enable AI agent online chat test"
+        default n
+        help
+            If enabled, ai_agent_test_run_all() will start the OpenAI realtime agent and send a text message.
+            This requires WiFi connected and AI_AGENT_API_KEY configured in example_config.h.
+endmenu

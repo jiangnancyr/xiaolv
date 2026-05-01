@@ -1,0 +1,204 @@
+/* AI Agent Memory Module - 添加到 ai_agent.c 的代码片段 */
+
+/* ========== 第1步：在文件开头 #include 部分添加 ========== */
+/*
+在 #include "example_config.h" 后面添加：
+*/
+#include <time.h>
+#include "nvs_flash.h"
+#include "nvs.h"
+
+/* ========== 第2步：在 static bool s_started; 后面添加 ========== */
+#if AI_AGENT_ENABLE_MEMORY
+
+typedef struct {
+    char *role;
+    char *content;
+    uint32_t timestamp;
+} ai_agent_message_t;
+
+typedef struct {
+    char summary[AI_AGENT_MEMORY_MAX_SUMMARY_LEN];
+    uint32_t last_update_time;
+    uint32_t message_count;
+} ai_agent_memory_t;
+
+static ai_agent_message_t *s_history = NULL;
+static size_t s_history_count = 0;
+static ai_agent_memory_t s_memory = {0};
+
+/* ========== NVS 持久化函数 ========== */
+static esp_err_t ai_agent_save_memory_to_nvs(void)
+{
+    nvs_handle_t handle;
+    esp_err_t ret = nvs_open(AI_AGENT_MEMORY_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open NVS: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    ret = nvs_set_blob(handle, "memory", &s_memory, sizeof(s_memory));
+    if (ret == ESP_OK) {
+        ret = nvs_commit(handle);
+        ESP_LOGI(TAG, "Memory saved to NVS");
+    }
+
+    nvs_close(handle);
+    return ret;
+}
+
+static esp_err_t ai_agent_load_memory_from_nvs(void)
+{
+    nvs_handle_t handle;
+    esp_err_t ret = nvs_open(AI_AGENT_MEMORY_NVS_NAMESPACE, NVS_READONLY, &handle);
+    if (ret != ESP_OK) {
+        if (ret == ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGI(TAG, "No previous memory found");
+        }
+        return ret;
+    }
+
+    size_t size = sizeof(s_memory);
+    ret = nvs_get_blob(handle, "memory", &s_memory, &size);
+    nvs_close(handle);
+
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Memory loaded: %u messages, summary: %.50s...", 
+                 s_memory.message_count, s_memory.summary);
+    }
+
+    return ret;
+}
+
+/* ========== 历史管理函数 ========== */
+static esp_err_t ai_agent_add_message(const char *role, const char *content)
+{
+    if (s_history_count >= AI_AGENT_MAX_SHORT_HISTORY) {
+        ESP_LOGW(TAG, "History full, triggering summary");
+        ai_agent_trigger_summary();
+    }
+
+    ai_agent_message_t *new_history = realloc(s_history, 
+        (s_history_count + 1) * sizeof(ai_agent_message_t));
+    if (!new_history) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    s_history = new_history;
+    s_history[s_history_count].role = strdup(role);
+    s_history[s_history_count].content = strdup(content);
+    s_history[s_history_count].timestamp = (uint32_t)time(NULL);
+
+    if (!s_history[s_history_count].role || !s_history[s_history_count].content) {
+        free(s_history[s_history_count].role);
+        free(s_history[s_history_count].content);
+        return ESP_ERR_NO_MEM;
+    }
+
+    s_history_count++;
+    return ESP_OK;
+}
+
+esp_err_t ai_agent_clear_history(void)
+{
+    for (size_t i = 0; i < s_history_count; i++) {
+        free(s_history[i].role);
+        free(s_history[i].content);
+    }
+    free(s_history);
+    s_history = NULL;
+    s_history_count = 0;
+    
+    ESP_LOGI(TAG, "History cleared");
+    return ESP_OK;
+}
+
+esp_err_t ai_agent_clear_memory(void)
+{
+    memset(&s_memory, 0, sizeof(s_memory));
+    ai_agent_clear_history();
+
+    nvs_handle_t handle;
+    esp_err_t ret = nvs_open(AI_AGENT_MEMORY_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (ret == ESP_OK) {
+        nvs_erase_key(handle, "memory");
+        nvs_commit(handle);
+        nvs_close(handle);
+    }
+
+    ESP_LOGI(TAG, "Memory cleared");
+    return ESP_OK;
+}
+
+esp_err_t ai_agent_get_memory_summary(char *out_summary, size_t out_size)
+{
+    if (!out_summary || out_size == 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    strlcpy(out_summary, s_memory.summary, out_size);
+    return ESP_OK;
+}
+
+esp_err_t ai_agent_trigger_summary(void)
+{
+    ESP_LOGI(TAG, "Summary triggered with %d messages", s_history_count);
+    // 简化版：直接保存历史计数，不调用AI总结
+    s_memory.message_count += s_history_count;
+    s_memory.last_update_time = (uint32_t)time(NULL);
+    
+    ai_agent_save_memory_to_nvs();
+    ai_agent_clear_history();
+    
+    return ESP_OK;
+}
+
+#endif /* AI_AGENT_ENABLE_MEMORY */
+
+/* ========== 第3步：在 ai_agent_init() 函数里添加（在 s_initialized = true; 之前）========== */
+/*
+#if AI_AGENT_ENABLE_MEMORY
+    esp_err_t ret = ai_agent_load_memory_from_nvs();
+    if (ret != ESP_OK && ret != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW(TAG, "Failed to load memory: %s", esp_err_to_name(ret));
+    }
+#endif
+*/
+
+/* ========== 第4步：在 ai_agent_send_text() 函数开头添加（在参数检查后）========== */
+/*
+#if AI_AGENT_ENABLE_MEMORY
+    esp_err_t ret = ai_agent_add_message("user", text);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to add user message: %s", esp_err_to_name(ret));
+    }
+#endif
+*/
+
+/* ========== 第5步：在 ai_agent_send_text() 收到回复后添加（在 text_handler 调用前）========== */
+/*
+#if AI_AGENT_ENABLE_MEMORY
+    ret = ai_agent_add_message("assistant", answer);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to add assistant message: %s", esp_err_to_name(ret));
+    }
+
+    if (s_history_count >= AI_AGENT_SUMMARY_INTERVAL) {
+        ESP_LOGI(TAG, "History reached %d messages, triggering summary", s_history_count);
+        ai_agent_trigger_summary();
+    }
+#endif
+*/
+
+/* ========== 第6步：在文件末尾添加（如果 AI_AGENT_ENABLE_MEMORY 为 0）========== */
+/*
+#if !AI_AGENT_ENABLE_MEMORY
+esp_err_t ai_agent_clear_history(void) { return ESP_OK; }
+esp_err_t ai_agent_clear_memory(void) { return ESP_OK; }
+esp_err_t ai_agent_get_memory_summary(char *out_summary, size_t out_size) { 
+    (void)out_summary; (void)out_size; 
+    return ESP_ERR_NOT_SUPPORTED; 
+}
+esp_err_t ai_agent_trigger_summary(void) { return ESP_ERR_NOT_SUPPORTED; }
+#endif
+*/
