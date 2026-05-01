@@ -23,6 +23,8 @@ static const char *TAG = "AUDIO_ASR";
 esp_http_client_handle_t g_http_asr_client = NULL;
 static bool s_connected = false;
 static int s_idle_seconds = 0;           // 空闲秒数
+static struct  wf_runtime *asr_rt = NULL;
+static uint8_t asr_task_id = 0;
 // 可选：读取响应
 char response_buffer[1024];
 // API配置
@@ -64,6 +66,7 @@ static esp_err_t siliconflow_asr_event_handler(esp_http_client_event_t *data)
             rep_data[index] = '\0';
             if (data->data_len > 0) {
                 ESP_LOGI(TAG, "Received opcode=%s, len=%d", rep_data, data->data_len);
+                esp_err_t err = wf_send(asr_rt, asr_task_id, AI_AGENT_TASK, USER_CHAT_COINTEXT, (uint32_t)index, data->data, 0);
             }
             break;
         case HTTP_EVENT_ON_FINISH:
@@ -133,6 +136,8 @@ static void cleanup_http_client(void)
 
 esp_err_t audio_stream_via_http_task(struct wf_runtime *rt, uint8_t self_task_id, void *arg)
 {   
+    asr_rt = rt;
+    asr_task_id = self_task_id;
     esp_err_t ret = ESP_OK;
     // 初始化websocket客户端
     if (g_http_asr_client == NULL) {

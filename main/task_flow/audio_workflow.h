@@ -8,7 +8,9 @@
 #include "workflow.h"
 #include "es8311_audio.h"
 #include "task_flow_config.h"
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 esp_err_t audio_wf_ctx_init(audio_wf_ctx_t *ctx,
                             const es8311_audio_cfg_t *audio_cfg,
                             size_t pcm_buf_size,
@@ -19,5 +21,10 @@ esp_err_t audio_wf_task_capture(struct wf_runtime *rt, uint8_t self_task_id, voi
 esp_err_t audio_wf_task_playback(struct wf_runtime *rt, uint8_t self_task_id, void *arg);
 
 const wf_def_t *audio_wf_get_loopback_def(audio_wf_ctx_t *ctx);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif /* AUDIO_WORKFLOW_H */

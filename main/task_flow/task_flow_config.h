@@ -26,13 +26,15 @@ typedef enum {
     AUDIO_WF_TASK_CAPTURE = 1,
     AUDIO_WF_TASK_PLAYBACK = 2,
     AUDIO_ASR_TASK_STREAM = 3,
-    AUDIO_WS_KEEP_TASK = 4,
+    AI_AGENT_TASK = 4,
+    AUDIO_WS_KEEP_TASK = 5,
 } audio_wf_task_id_t;
 
 typedef enum {
     AUDIO_WF_MSG_PCM = 1,
     AUDIO_WF_MSG_END = 2,
     AUDIO_ASR_MSG_STREAM = 3,
+    USER_CHAT_COINTEXT = 4,
 } audio_wf_msg_id_t;
 
 typedef struct {

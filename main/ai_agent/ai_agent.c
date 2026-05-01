@@ -101,7 +101,7 @@ static esp_err_t ai_agent_add_message(const char *role, const char *content)
     }
 
     s_history = new_history;
-    s_history[s_history_count].role = strdup(role);
+    s_history[s_history_count].role = strdup(role); 
     s_history[s_history_count].content = strdup(content);
     s_history[s_history_count].timestamp = (uint32_t)time(NULL);
 
@@ -288,11 +288,39 @@ esp_err_t ai_agent_init(const ai_agent_config_t *config)
     s_initialized = true;
     return ESP_OK;
 }
+// ESP_LOGI(TAG, "==== AI agent online chat test begin ====");
 
+// if (!ai_agent_test_has_api_key()) {
+//     ESP_LOGW(TAG, "Skip online chat test: AI_AGENT_API_KEY is not configured");
+//     return ESP_ERR_INVALID_STATE;
+// }
+
+// ai_agent_test_ctx_t test_ctx = {0};
+// ai_agent_config_t config = {
+//     .text_handler = ai_agent_test_on_text,
+//     .audio_handler = ai_agent_test_on_audio,
+//     .event_handler = ai_agent_test_on_event,
+//     .ctx = &test_ctx,
+// };
+
+// ESP_RETURN_ON_ERROR(ai_agent_init(&config), TAG, "ai_agent_init failed");
+// esp_err_t ret = ai_agent_start();
+// if (ret != ESP_OK) {
+//     (void)ai_agent_deinit();
+//     ESP_LOGE(TAG, "ai_agent_start failed: %s", esp_err_to_name(ret));
+//     return ret;
+// }
 esp_err_t ai_agent_start(void)
 {
     if (!s_initialized) {
-        ESP_RETURN_ON_ERROR(ai_agent_init(NULL), TAG, "init ai_agent failed");
+        ESP_LOGI(TAG, "==== AI agent online chat begin ====");
+        ai_agent_config_t config = {
+            .text_handler = NULL,
+            .audio_handler = NULL,
+            .event_handler = NULL,
+            .ctx = NULL,
+        };
+        ESP_RETURN_ON_ERROR(ai_agent_init(&config), TAG, "init ai_agent failed");
     }
 
     s_started = true;
