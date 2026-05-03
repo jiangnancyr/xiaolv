@@ -5,6 +5,8 @@
 #include "ai_agent.h"
 #include "cJSON.h"
 #include "esp_err.h"
+#include "esp_log.h"
+#include "freertos/idf_additions.h"
 #include "logger.h"
 #include "workflow.h"
 
@@ -38,7 +40,7 @@ bool ai_agent_try_extract_text_from_json(const void *ptr, size_t len, char *out_
 
     strlcpy(out_text, text->valuestring, out_size);
     cJSON_Delete(root);
-    return true;
+    return out_size == 0 ? false : true;
 }
 
 esp_err_t ai_agent_task(struct wf_runtime *rt, uint8_t self_task_id, void *arg)
@@ -51,15 +53,21 @@ esp_err_t ai_agent_task(struct wf_runtime *rt, uint8_t self_task_id, void *arg)
     if (ret != ESP_OK) {
         return ESP_FAIL;
     }
-
+    ESP_LOGI(TAG, "Received message for AI agent task, len=%u", (unsigned)msg.value);
     char text[512] = {0};
     if (ai_agent_try_extract_text_from_json(msg.ptr, (size_t)msg.value, text, sizeof(text))) {
         LOG_I(TAG, "ai json text: %s", text);
         ai_agent_start();
-        return ai_agent_send_text(text);
+        ret = ai_agent_send_text(text);
+        vTaskDelay(pdMS_TO_TICKS(1000)); // 避免过快调用 ai_agent_stop 导致消息未完全处理
+        if (ret != ESP_OK) {
+            LOG_E(TAG, "ai_agent_send_text failed: %s", esp_err_to_name(ret));
+            return ret;
+        }
+    } else {
+        LOG_W(TAG, "Failed to extract text from AI agent message");
+        return ESP_ERR_INVALID_ARG;
     }
 
-    LOG_I(TAG, "ai rev:%s, len=%d", (const char *)msg.ptr, msg.value);
-    ai_agent_start();
-    return ai_agent_send_text((const char *)msg.ptr);
+    return ESP_OK;
 }

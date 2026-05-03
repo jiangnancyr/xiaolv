@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "example_config.h"
 #include <time.h>
+#include "logger.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 
@@ -197,12 +198,15 @@ static esp_err_t ai_agent_http_event_handler(esp_http_client_event_t *evt)
     if (response->data_len + copy_len >= response->buffer_size) {
         copy_len = response->buffer_size - response->data_len - 1;
         response->overflow = true;
+        ESP_LOGW(TAG, "Response buffer overflow, data truncated");
+        return ESP_OK; // 仍然返回 ESP_OK 以继续接收数据，但不再写入缓冲区
     }
 
     if (copy_len > 0) {
         memcpy(response->buffer + response->data_len, evt->data, copy_len);
         response->data_len += copy_len;
         response->buffer[response->data_len] = '\0';
+
     }
 
     return ESP_OK;
@@ -229,7 +233,16 @@ static char *ai_agent_build_request_body(const char *text)
     cJSON_AddStringToObject(system_message, "role", "system");
     cJSON_AddStringToObject(system_message, "content", AI_AGENT_SYSTEM_PROMPT);
     cJSON_AddItemToArray(messages, system_message);
-
+    for(size_t i = 0; i < s_history_count; i++) {
+        cJSON *history_message = cJSON_CreateObject();
+        if (!history_message) {
+            cJSON_Delete(root);
+            return NULL;
+        }
+        cJSON_AddStringToObject(history_message, "role", s_history[i].role);
+        cJSON_AddStringToObject(history_message, "content", s_history[i].content);
+        cJSON_AddItemToArray(messages, history_message);
+    }
     cJSON_AddStringToObject(user_message, "role", "user");
     cJSON_AddStringToObject(user_message, "content", text);
     cJSON_AddItemToArray(messages, user_message);
@@ -241,6 +254,7 @@ static char *ai_agent_build_request_body(const char *text)
     cJSON_AddBoolToObject(root, "enable_thinking", false);
 
     char *body = cJSON_PrintUnformatted(root);
+    LOG_I(TAG, "AI agent request body: %s", body);
     cJSON_Delete(root);
     return body;
 }
@@ -438,7 +452,7 @@ esp_err_t ai_agent_send_text(const char *text)
 
     ret = ai_agent_parse_response_text(response_buffer, answer, AI_AGENT_RESPONSE_TEXT_MAX_LEN);
     free(response_buffer);
-
+    ESP_LOGI(TAG, "AI agent answer: %s", answer);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Parse DeepSeek response failed: %s", esp_err_to_name(ret));
         ai_agent_dispatch_event(AI_AGENT_EVENT_ERROR, "parse response failed");

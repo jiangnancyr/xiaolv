@@ -55,8 +55,9 @@ esp_err_t audio_wf_ctx_init(audio_wf_ctx_t *ctx,
     ctx->audio_cfg = *audio_cfg;
     ctx->pcm_buf_size = pcm_buf_size;
     ctx->io_timeout_ticks = io_timeout_ticks;
-    ctx->silence_threshold_abs = 800;
+    ctx->silence_threshold_abs = 750;  // 降低静音阈值以减少误判
     ctx->silence_chunks_to_stop = 30;
+    ctx->min_recording_chunks = 50;  // 最少录制50个块（约2-3秒，取决于块大小）
     ctx->capture_buf = (uint8_t *)malloc(pcm_buf_size);
     if (!ctx->capture_buf) {
         return ESP_ERR_NO_MEM;
@@ -144,7 +145,8 @@ esp_err_t audio_wf_task_capture(struct wf_runtime *rt, uint8_t self_task_id, voi
             merged_len += bytes_read;
             if (!has_speech) {
                 silent_count++;
-                if (silent_count >= ctx->silence_chunks_to_stop) {
+                // 只有在录制了足够的块数后才因静音停止
+                if (silent_count >= ctx->silence_chunks_to_stop && merged_len >= ctx->min_recording_chunks * bytes_read) {
                     speech_started = false;
                     silent_count = 0;
                     if (merged_len > 0) {

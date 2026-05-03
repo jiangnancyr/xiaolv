@@ -66,7 +66,8 @@ static esp_err_t siliconflow_asr_event_handler(esp_http_client_event_t *data)
             rep_data[index] = '\0';
             if (data->data_len > 0) {
                 ESP_LOGI(TAG, "Received opcode=%s, len=%d", rep_data, data->data_len);
-                esp_err_t err = wf_send(asr_rt, asr_task_id, AI_AGENT_TASK, USER_CHAT_COINTEXT, (uint32_t)index, data->data, 0);
+                esp_err_t er = wf_send(asr_rt, asr_task_id, AI_AGENT_TASK, USER_CHAT_COINTEXT, (uint32_t)index, rep_data, 0);
+                ESP_LOGI(TAG, "wf_send result: %d", er);
             }
             break;
         case HTTP_EVENT_ON_FINISH:
@@ -141,11 +142,10 @@ esp_err_t audio_stream_via_http_task(struct wf_runtime *rt, uint8_t self_task_id
     esp_err_t ret = ESP_OK;
     // 初始化websocket客户端
     if (g_http_asr_client == NULL) {
-        // 2. 配置HTTP客户端
         esp_http_client_config_t config = {
             .url = API_URL,
             .method = HTTP_METHOD_POST,
-            .timeout_ms = 10000,
+            .timeout_ms = 30000,  // 增加超时时间到30秒
             .keep_alive_enable = true,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .event_handler = siliconflow_asr_event_handler,
@@ -190,8 +190,22 @@ esp_err_t audio_stream_via_http_task(struct wf_runtime *rt, uint8_t self_task_id
     ret = esp_http_client_set_post_field(g_http_asr_client, post_data, len);
     ESP_GOTO_ON_FALSE(ret == ESP_OK, ESP_FAIL, err, TAG, "esp_http_client_set_post_field fail");
 
-    ret = esp_http_client_perform(g_http_asr_client);
-    ESP_GOTO_ON_FALSE(ret == ESP_OK, ESP_FAIL, err, TAG, "esp_http_client_perform fail");
+    // 添加重试机制，最多重试3次
+    int retry_count = 0;
+    const int max_retries = 3;
+    do {
+        ret = esp_http_client_perform(g_http_asr_client);
+        if (ret == ESP_OK) {
+            break;
+        }
+        retry_count++;
+        if (retry_count < max_retries) {
+            ESP_LOGW(TAG, "HTTP request failed (attempt %d/%d), retrying...", retry_count, max_retries);
+            vTaskDelay(pdMS_TO_TICKS(1000));  // 等待1秒后重试
+        }
+    } while (retry_count < max_retries);
+    
+    ESP_GOTO_ON_FALSE(ret == ESP_OK, ESP_FAIL, err, TAG, "esp_http_client_perform fail after %d retries", max_retries);
 
     int status_code = esp_http_client_get_status_code(g_http_asr_client);
     ESP_LOGI(TAG, "HTTP POST Status = %d", status_code);

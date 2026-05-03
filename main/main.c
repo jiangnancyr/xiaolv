@@ -27,7 +27,7 @@
 #include "task_build.h"
 
  static const char *TAG = "main";
-// 给外放芯片供�?
+// 给外放芯片供�?
 static void PowerOnBoardPowerManager(void) 
 {
     if (EXAMPLE_PA_CTRL_IO < 0) {
@@ -90,7 +90,7 @@ static esp_err_t do_wifi_connect(void)
 }
 // 在初始化 client 之前设置日志级别
 void enable_http_debug(void) {
-    // 启用 HTTP Client 的详细日�?
+    // 启用 HTTP Client 的详细日�?
     esp_log_level_set("HTTP_CLIENT", ESP_LOG_VERBOSE);
     esp_log_level_set("HTTP_CLIENT_TRANSPORT", ESP_LOG_VERBOSE);
     
@@ -106,7 +106,7 @@ void app_main(void)
         (int)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
     ESP_ERROR_CHECK(init_nvs());
-    // 初始化日志系�?
+    // 初始化日志系�?
     logger_init();
     logger_set_level(LOG_LEVEL_DEBUG);
     LOG_I(TAG, "========================================");
@@ -116,10 +116,10 @@ void app_main(void)
     PowerOnBoardPowerManager();
     // 初始化任务调度器
     ESP_ERROR_CHECK(task_scheduler_init());
-    // // 初始化事件系�?
+    // // 初始化事件系�?
     // ESP_ERROR_CHECK(event_system_init());
 
-        // 创建测试任务（演示用�?
+        // 创建测试任务（演示用�?
     task_config_t led_task_config = {
         .name = "led_task",
         .task_func = led_task,
@@ -134,16 +134,24 @@ void app_main(void)
     ESP_LOGI(TAG, "Running board driver tests...");
 
     // 打开wifi
-    // 初始化WiFi管理�?
+    // 初始化WiFi管理�?
     ESP_ERROR_CHECK(wifi_manager_init());
     vTaskDelay(pdMS_TO_TICKS(1000));
     ESP_ERROR_CHECK(do_wifi_connect());
-    ESP_ERROR_CHECK(driver_test_run_all());
-    ESP_ERROR_CHECK(start_chat_flow());
+    // ESP_ERROR_CHECK(driver_test_run_all());
+        task_config_t main_task_config = {
+        .name = "chat_flow_manager_task",
+        .task_func = chat_flow_manager_task,
+        .params = NULL,
+        .stack_size = TASK_STACK_MAIN,
+        .priority = TASK_PRIORITY_HIGH,
+        .core_id = -1
+    };
+    ESP_ERROR_CHECK(task_create(&main_task_config));
     while (1) {
         // 定期打印任务统计
         static int stats_counter = 0;
-        if (stats_counter++ >= 60) {  // �?0秒打印一�?
+        if (stats_counter++ >= 60) {  // �?0秒打印一�?
             task_print_stats(); // 打印任务信息
             stats_counter = 0;
         }
