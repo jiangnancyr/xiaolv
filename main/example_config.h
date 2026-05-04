@@ -54,8 +54,8 @@
 #define EVENT_QUEUE_SIZE        32
 
 // ==================== WiFi 配置 ====================
-#define WIFI_SSID               "CU_d2P3"
-#define WIFI_PASSWORD           "kd4gh9rx"
+#define WIFI_SSID               "610"// "CU_d2P3"
+#define WIFI_PASSWORD           "12345678"// "kd4gh9rx"
 #define WIFI_MAX_RETRY          5
 
 #define SILICONFLOW_API_KEY     "Bearer sk-pwacimgxvzjxwyrzygqwiyhydzflwvgwttfasqfvhgozrrdr"
@@ -64,7 +64,7 @@
 // ==================== AI 聊天伴侣配置 ====================
 #define AI_AGENT_API_URL                "https://api.deepseek.com/chat/completions"
 #define AI_AGENT_API_KEY                "Bearer sk-aeb22f22a73c4417bbadd3b32b6a1d0c"
-#define AI_AGENT_MODEL                  "deepseek-chat"
+#define AI_AGENT_MODEL                  "deepseek-v4-flash"
 #define AI_AGENT_HTTP_TIMEOUT_MS        30000
 #define AI_AGENT_RESPONSE_TEXT_MAX_LEN  1024
 #define AI_AGENT_HTTP_RESPONSE_MAX_LEN  8192
@@ -77,3 +77,10 @@
 #define AI_AGENT_MEMORY_NVS_NAMESPACE       "ai_agent"
 #define AI_AGENT_SUMMARY_PROMPT             "请用100字以内总结以下对话的关键信息和用户偏好："
 #define AI_AGENT_MEMORY_MAX_SUMMARY_LEN     512
+
+#define AI_TTS_MODEL                        "FunAudioLLM/CosyVoice2-0.5B"
+#define AI_TTS_VOICE                        "FunAudioLLM/CosyVoice2-0.5B:diana"
+#define AI_TTS_API_URL                      "https://api.siliconflow.cn/v1/audio/speech"
+#define AI_TTS_API_KEY                      "Bearer sk-pwacimgxvzjxwyrzygqwiyhydzflwvgwttfasqfvhgozrrdr"
+#define AI_TTS_HTTP_TIMEOUT_MS              30000
+#define AI_TTS_HTTP_RESPONSE_MAX_LEN         (1024 * 1024) // 1MB

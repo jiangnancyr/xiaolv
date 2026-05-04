@@ -28,6 +28,7 @@ typedef enum {
     AUDIO_ASR_TASK_STREAM = 3,
     AI_AGENT_TASK = 4,
     AUDIO_WS_KEEP_TASK = 5,
+    AUDIO_TTS_TASK = 6,  // 新增TTS任务ID
 } audio_wf_task_id_t;
 
 typedef enum {
@@ -35,6 +36,8 @@ typedef enum {
     AUDIO_WF_MSG_END = 2,
     AUDIO_ASR_MSG_STREAM = 3,
     USER_CHAT_COINTEXT = 4,
+    AUDIO_TTS_MSG_TEXT = 5,  // TTS文本输入消息ID
+    AUDIO_PLAYER_MSG_AUDIO = 6,  // 播放器音频数据消息ID
 } audio_wf_msg_id_t;
 
 typedef struct {
@@ -44,6 +47,7 @@ typedef struct {
     TickType_t io_timeout_ticks;
     int silence_threshold_abs;
     int silence_chunks_to_stop;
+    int min_recording_chunks;  // 最少录制块数，避免过早因静音停止
     bool audio_inited;
 } audio_wf_ctx_t;
 

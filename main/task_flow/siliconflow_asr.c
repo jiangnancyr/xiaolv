@@ -26,7 +26,7 @@ static int s_idle_seconds = 0;           // 空闲秒数
 static struct  wf_runtime *asr_rt = NULL;
 static uint8_t asr_task_id = 0;
 // 可选：读取响应
-char response_buffer[1024];
+// char response_buffer[1024];
 // API配置
 #define API_URL "https://api.siliconflow.cn/v1/audio/transcriptions"
 #define BOUNDARY "--------------------------ESP32StreamBoundary"
@@ -42,7 +42,7 @@ typedef struct {
     bool is_last;       // 是否最后一块
 } audio_chunk_t;
 
-char *rep_data[512];
+char *rep_data = NULL;
 // 1. 定义事件处理函数
 static esp_err_t siliconflow_asr_event_handler(esp_http_client_event_t *data)
 {
@@ -50,6 +50,11 @@ static esp_err_t siliconflow_asr_event_handler(esp_http_client_event_t *data)
         case HTTP_EVENT_ON_CONNECTED:
             s_idle_seconds = 0;  // 收到数据也算活动
             s_connected = true;
+            rep_data = malloc(512);
+            if (!rep_data) {        
+                ESP_LOGE(TAG, "Failed to allocate response buffer");
+                return ESP_ERR_NO_MEM;
+            }
             ESP_LOGI(TAG, "HTTP_EVENT_ON_CONNECTED");
             break;
         case HTTP_EVENT_DISCONNECTED:
@@ -145,7 +150,7 @@ esp_err_t audio_stream_via_http_task(struct wf_runtime *rt, uint8_t self_task_id
         esp_http_client_config_t config = {
             .url = API_URL,
             .method = HTTP_METHOD_POST,
-            .timeout_ms = 30000,  // 增加超时时间到30秒
+            .timeout_ms = 5000,  // 增加超时时间到30秒
             .keep_alive_enable = true,
             .crt_bundle_attach = esp_crt_bundle_attach,
             .event_handler = siliconflow_asr_event_handler,
@@ -192,7 +197,7 @@ esp_err_t audio_stream_via_http_task(struct wf_runtime *rt, uint8_t self_task_id
 
     // 添加重试机制，最多重试3次
     int retry_count = 0;
-    const int max_retries = 3;
+    const int max_retries = 5;
     do {
         ret = esp_http_client_perform(g_http_asr_client);
         if (ret == ESP_OK) {

@@ -30,7 +30,7 @@ esp_err_t ai_agent_init(const ai_agent_config_t *config);
 esp_err_t ai_agent_start(void);
 esp_err_t ai_agent_stop(void);
 esp_err_t ai_agent_deinit(void);
-esp_err_t ai_agent_send_text(const char *text);
+esp_err_t ai_agent_send_text(const char *text, char *response_buffer, size_t buffer_size);
 void ai_agent_send_audio(uint8_t *data, size_t len);
 
 esp_err_t ai_agent_clear_history(void);

@@ -361,7 +361,7 @@ esp_err_t ai_agent_deinit(void)
     return ESP_OK;
 }
 
-esp_err_t ai_agent_send_text(const char *text)
+esp_err_t ai_agent_send_text(const char *text, char *rep_buffer, size_t buffer_size)
 {
     esp_err_t ret;
     if (!text || text[0] == '\0') {
@@ -473,7 +473,11 @@ esp_err_t ai_agent_send_text(const char *text)
     if (s_config.text_handler) {
         s_config.text_handler(answer, s_config.ctx);
     }
-
+    // 入参出参
+    size_t copy_len = strlcpy(rep_buffer, answer, buffer_size);
+    if (copy_len >= buffer_size) {
+        ESP_LOGW(TAG, "Response buffer too small, data truncated");
+    }
     free(answer);
     return ESP_OK;
 }

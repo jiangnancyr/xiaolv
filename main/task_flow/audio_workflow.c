@@ -181,31 +181,30 @@ esp_err_t audio_wf_task_playback(struct wf_runtime *rt, uint8_t self_task_id, vo
         return ESP_ERR_INVALID_STATE;
     }
 
-    while (1) {
-        wf_message_t msg = {0};
-        esp_err_t err = wf_recv(rt, self_task_id, &msg, ctx->io_timeout_ticks);
-        if (err == ESP_ERR_TIMEOUT) {
-            continue;
-        }
-        if (err != ESP_OK) {
-            return err;
-        }
-
-        if (msg.msg_id == AUDIO_WF_MSG_END) {
-            ESP_LOGI(TAG, "playback received end message");
-            return ESP_OK;
-        }
-        if (msg.msg_id != AUDIO_WF_MSG_PCM || !msg.ptr || msg.value == 0) {
-            continue;
-        }
-
-        size_t bytes_write = 0;
-        err = es8311_audio_output(msg.ptr, msg.value, &bytes_write, ctx->io_timeout_ticks);
+    wf_message_t msg = {0};
+    esp_err_t err = wf_recv(rt, self_task_id, &msg, ctx->io_timeout_ticks);
+    if (err != ESP_OK) {
         free(msg.ptr);
-        if (err != ESP_OK) {
-            return err;
-        }
+        return err;
     }
+
+    if (msg.msg_id == AUDIO_PLAYER_MSG_AUDIO) {
+        ESP_LOGI(TAG, "playback received end message");
+    }
+    if (msg.msg_id != AUDIO_PLAYER_MSG_AUDIO || !msg.ptr || msg.value == 0) {
+        ESP_LOGE(TAG, "playback received invalid message: id=%d, value=%u, ptr=%p", msg.msg_id, (unsigned)msg.value, msg.ptr);
+        free(msg.ptr);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    err = es8311_audio_output_large(msg.ptr, msg.value, ctx->io_timeout_ticks);
+    free(msg.ptr);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to play audio: %s", esp_err_to_name(err));
+    }
+    ESP_LOGI(TAG, "playback done for message id=%d, value=%u", msg.msg_id, (unsigned)msg.value);
+    return err;
+
 }
 
 const wf_def_t *audio_wf_get_loopback_def(audio_wf_ctx_t *ctx)

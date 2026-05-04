@@ -159,6 +159,25 @@ esp_err_t es8311_audio_output(const void *pcm, size_t len, size_t *bytes_written
     return i2s_channel_write(s_tx, pcm, len, bytes_written, timeout_ticks);
 }
 
+esp_err_t es8311_audio_output_large(const void *pcm, size_t total_len, TickType_t timeout_ticks) 
+{
+    size_t chunk_size = 2048;  // 每次写入块大小，可调整
+    size_t offset = 0;
+    size_t bytes_written = 0;
+    esp_err_t ret = ESP_OK;
+
+    while (offset < total_len) {
+        size_t len_to_write = (total_len - offset > chunk_size) ? chunk_size : (total_len - offset);
+        ret = es8311_audio_output((uint8_t *)pcm + offset, len_to_write, &bytes_written, timeout_ticks);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to write audio chunk at offset %zu: %s", offset, esp_err_to_name(ret));
+            return ret;
+        }
+        offset += bytes_written;
+    }
+    return ESP_OK;
+}
+
 esp_err_t es8311_audio_input(void *pcm, size_t len, size_t *bytes_read, TickType_t timeout_ticks)
 {
     if (!s_inited || !s_rx || !pcm || len == 0) {

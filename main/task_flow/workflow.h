@@ -77,6 +77,11 @@ typedef struct wf_runtime {
     QueueHandle_t done_queue;
 } wf_runtime_t;
 
+typedef struct {
+    uint8_t task_id;
+    esp_err_t result;
+} wf_task_done_msg_t;
+
 /* ---------- definition macros ---------- */
 /* 定义任务条目（建议在静态数组中使用） */
 #define WF_TASK(_id, _name, _fn, _arg, _stack, _prio, _core) \

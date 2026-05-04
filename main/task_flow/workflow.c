@@ -34,16 +34,20 @@ static void wf_worker_entry(void *param)
     wf_runtime_t *rt = ctx->rt;
     const wf_task_desc_t *task_desc = &rt->def->tasks[ctx->index];
     uint8_t done_index = ctx->index;
-
+    wf_task_done_msg_t done_msg = {
+        .task_id = task_desc->id,
+        .result = ESP_OK,
+    };
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         esp_err_t err = task_desc->fn(rt, task_desc->id, task_desc->arg);
         if (err != ESP_OK) {
+            done_msg.result = err;
             LOG_W(TAG, "Task %s run failed: %s", task_desc->name, esp_err_to_name(err));
         }
 
-        if (xQueueSend(rt->done_queue, &done_index, portMAX_DELAY) != pdPASS) {
+        if (xQueueSend(rt->done_queue, &done_msg, portMAX_DELAY) != pdPASS) {
             LOG_E(TAG, "Done queue full, task=%s", task_desc->name);
         }
     }
@@ -68,18 +72,27 @@ static esp_err_t wf_run_step(wf_runtime_t *rt, const wf_step_desc_t *step)
         expected_done++;
 
         if (step->type == WF_STEP_SERIAL) {
-            uint8_t done_idx = 0xFF;
-            if (xQueueReceive(rt->done_queue, &done_idx, portMAX_DELAY) != pdPASS) {
+            wf_task_done_msg_t done_msg;
+            if (xQueueReceive(rt->done_queue, &done_msg, portMAX_DELAY) != pdPASS) {
                 return ESP_FAIL;
+            }
+            // 当出现一个任务执行失败就立即返回错误，不继续执行后续任务
+            if (done_msg.result != ESP_OK) {
+                LOG_W(TAG, "Task %u in step %s failed: %s", done_msg.task_id, step->name ? step->name : "unnamed", esp_err_to_name(done_msg.result));
+                return done_msg.result;
             }
             expected_done--;
         }
     }
 
     while (expected_done > 0) {
-        uint8_t done_idx = 0xFF;
-        if (xQueueReceive(rt->done_queue, &done_idx, portMAX_DELAY) != pdPASS) {
+        wf_task_done_msg_t done_msg;
+        if (xQueueReceive(rt->done_queue, &done_msg, portMAX_DELAY) != pdPASS) {
             return ESP_FAIL;
+        }
+        if (done_msg.result != ESP_OK) {
+            LOG_W(TAG, "Task %u in step %s failed: %s", done_msg.task_id, step->name ? step->name : "unnamed", esp_err_to_name(done_msg.result));
+            return done_msg.result;
         }
         expected_done--;
     }
@@ -100,7 +113,7 @@ esp_err_t wf_runtime_init(wf_runtime_t *rt, const wf_def_t *def)
     memset(rt, 0, sizeof(*rt));
     rt->def = def;
     rt->runner_task = xTaskGetCurrentTaskHandle();
-    rt->done_queue = xQueueCreate(def->task_count, sizeof(uint8_t));
+    rt->done_queue = xQueueCreate(def->task_count, sizeof(wf_task_done_msg_t));
     if (!rt->done_queue) {
         LOG_E(TAG, "Create done queue failed");
         return ESP_ERR_NO_MEM;
