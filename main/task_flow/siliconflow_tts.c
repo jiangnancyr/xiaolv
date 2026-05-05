@@ -185,6 +185,8 @@ esp_err_t siliconflow_tts_task(struct wf_runtime *rt, uint8_t self_task_id, void
     client = NULL;  // 避免后续误用
     if (status_code != 200) {
         ESP_LOGE(TAG, "TTS request failed with status %d", status_code);
+        free(config->audio_buffer);
+        config->audio_buffer = NULL;
         ret = ESP_FAIL;
     } else {
         while(true) {

@@ -20,6 +20,7 @@ bool ai_agent_try_extract_text_from_json(const void *ptr, size_t len, char *out_
 
     char *json_text = calloc(1, len + 1);
     if (!json_text) {
+        ESP_LOGE(TAG, "Failed to allocate memory for JSON text");
         return false;
     }
 
@@ -29,17 +30,20 @@ bool ai_agent_try_extract_text_from_json(const void *ptr, size_t len, char *out_
     free(json_text);
 
     if (!root) {
+        ESP_LOGE(TAG, "Failed to parse JSON text");
         return false;
     }
 
     const cJSON *text = cJSON_GetObjectItem(root, "text");
     if (!cJSON_IsString(text) || !text->valuestring) {
         cJSON_Delete(root);
+        ESP_LOGE(TAG, "JSON does not contain a valid 'text' field");
         return false;
     }
     size_t text_len = strlen(text->valuestring);
     strlcpy(out_text, text->valuestring, out_size);
     cJSON_Delete(root);
+    ESP_LOGI(TAG, "Extracted text from JSON: %s", out_text);
     return text_len == 0 ? false : true;
 }
 
@@ -56,7 +60,7 @@ esp_err_t ai_agent_task(struct wf_runtime *rt, uint8_t self_task_id, void *arg)
     ESP_LOGI(TAG, "Received message for AI agent task, len=%u", (unsigned)msg.value);
     char text[512] = {0};
     wf_message_t reply_msg = {0};
-    reply_msg.ptr = malloc(512);
+    reply_msg.ptr = heap_caps_malloc(512, MALLOC_CAP_SPIRAM);
     if (!reply_msg.ptr) {
         ESP_LOGE(TAG, "Failed to allocate memory for reply data");
         free(msg.ptr);

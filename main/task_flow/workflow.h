@@ -19,7 +19,7 @@ extern "C" {
 #ifndef WF_MAILBOX_LEN
 #define WF_MAILBOX_LEN 8
 #endif
-
+#define WF_TASK_MAX_MEM_ALLOC_NUM   16
 /* 步骤执行类型：串行表示同一步内逐个任务执行；并行表示同一步内任务同时触发并等待全部完成 */
 typedef enum {
     WF_STEP_SERIAL = 0,
@@ -75,6 +75,15 @@ typedef struct wf_runtime {
     TaskHandle_t worker_handles[WF_MAX_TASKS];
     QueueHandle_t mailbox[WF_MAX_TASKS];
     QueueHandle_t done_queue;
+    void *alloc_buffer[WF_MAX_TASKS][WF_TASK_MAX_MEM_ALLOC_NUM]; // 预留给任务使用的内存缓冲区指针数组
+    // task内存申请函数指针
+    void *(*alloc_fn)(struct wf_runtime *rt, uint8_t task_id, size_t size);
+    // task内存释放函数指针
+    void (*free_fn)(struct wf_runtime *rt, uint8_t task_id, void *);
+    // task内存重新分配函数指针
+    void *(*realloc_fn)(struct wf_runtime *rt, uint8_t task_id, void *, size_t);
+    // 释放所有申请的内存（通常在任务结束时调用）
+    void (*free_all_fn)(struct wf_runtime *rt, uint8_t task_id);
 } wf_runtime_t;
 
 typedef struct {
@@ -114,6 +123,15 @@ esp_err_t wf_send(wf_runtime_t *rt, uint8_t from_task_id, uint8_t to_task_id,
 /* 从当前任务邮箱接收一条消息（超时返回 ESP_ERR_TIMEOUT） */
 esp_err_t wf_recv(wf_runtime_t *rt, uint8_t self_task_id, wf_message_t *out_msg, TickType_t ticks_to_wait);
 
+/* ---------- task memory management APIs ---------- */
+/* 任务内存申请：从预设的内存块数组中分配一块内存，返回指针 */
+void *wf_alloc(struct wf_runtime *rt, uint8_t task_id, size_t size);
+/* 任务内存释放：释放之前申请的内存 */
+void wf_free(struct wf_runtime *rt, uint8_t task_id, void *ptr);
+/* 任务内存重新分配：重新分配一块新的内存 */
+void *wf_realloc(struct wf_runtime *rt, uint8_t task_id, void *ptr, size_t new_size);
+/* 任务释放所有申请的内存 */
+void wf_free_all(struct wf_runtime *rt, uint8_t task_id);
 #ifdef __cplusplus
 }
 #endif

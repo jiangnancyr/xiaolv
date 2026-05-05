@@ -55,10 +55,10 @@ esp_err_t audio_wf_ctx_init(audio_wf_ctx_t *ctx,
     ctx->audio_cfg = *audio_cfg;
     ctx->pcm_buf_size = pcm_buf_size;
     ctx->io_timeout_ticks = io_timeout_ticks;
-    ctx->silence_threshold_abs = 750;  // 降低静音阈值以减少误判
+    ctx->silence_threshold_abs = 700;  // 降低静音阈值以减少误判
     ctx->silence_chunks_to_stop = 30;
     ctx->min_recording_chunks = 50;  // 最少录制50个块（约2-3秒，取决于块大小）
-    ctx->capture_buf = (uint8_t *)malloc(pcm_buf_size);
+    ctx->capture_buf = (uint8_t *)malloc(pcm_buf_size); // 1600 * 2; // 100ms的16kHz单声道音频
     if (!ctx->capture_buf) {
         return ESP_ERR_NO_MEM;
     }
@@ -102,8 +102,11 @@ esp_err_t audio_wf_task_capture(struct wf_runtime *rt, uint8_t self_task_id, voi
     size_t merged_len = 0;
     // 获取 SPIRAM 剩余字节数
     size_t free_spiram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    size_t free_heap = esp_get_free_heap_size();
     ESP_LOGI(TAG, "Free SPIRAM: %zu bytes\n", free_spiram);
-    merged_buf = (uint8_t *)heap_caps_malloc(MAX_AUDIO_DATA, MALLOC_CAP_SPIRAM);
+    ESP_LOGI(TAG, "Free Heap: %zu bytes\n", free_heap);
+    // 这是消息发送内存，申请的是对应任务的内存，任务结束会自动释放，所以这里不需要担心内存泄漏
+    merged_buf = (uint8_t *)rt->alloc_fn(rt, AUDIO_ASR_TASK_STREAM, MAX_AUDIO_DATA); // 从工作流的内存管理函数分配内存
     if(merged_buf == NULL) {
         ESP_LOGE(TAG, "malloc merged_buf error");
     }
@@ -113,14 +116,14 @@ esp_err_t audio_wf_task_capture(struct wf_runtime *rt, uint8_t self_task_id, voi
         size_t bytes_read = 0;
         esp_err_t err = es8311_audio_input(ctx->capture_buf, ctx->pcm_buf_size, &bytes_read, ctx->io_timeout_ticks);
         if (err != ESP_OK) {
-            free(merged_buf);
+            rt->free_fn(rt, AUDIO_ASR_TASK_STREAM, merged_buf);
             return err;
         }
         if (bytes_read == 0) {
             continue;
         }
         if (bytes_read > SIZE_MAX - merged_len || merged_len + bytes_read > UINT32_MAX) {
-            free(merged_buf);
+            rt->free_fn(rt, AUDIO_ASR_TASK_STREAM, merged_buf);
             return ESP_ERR_INVALID_SIZE;
         }
         // 是否讲话了
@@ -133,10 +136,10 @@ esp_err_t audio_wf_task_capture(struct wf_runtime *rt, uint8_t self_task_id, voi
         if (speech_started) {
             // 如果累计的数据量大于上限，则重新分配内存。
             if (merged_len + bytes_read > MAX_AUDIO_DATA) {
-                uint8_t *new_buf = (uint8_t *)realloc(merged_buf, merged_len + bytes_read);
+                uint8_t *new_buf = (uint8_t *)rt->realloc_fn(rt, AUDIO_ASR_TASK_STREAM, merged_buf, merged_len + bytes_read);
                 ESP_LOGW(TAG, "voice time > 20s");
                 if (!new_buf) {
-                    free(merged_buf);
+                    rt->free_fn(rt, AUDIO_ASR_TASK_STREAM, merged_buf);
                     return ESP_ERR_NO_MEM;
                 }
                 merged_buf = new_buf;
@@ -153,7 +156,7 @@ esp_err_t audio_wf_task_capture(struct wf_runtime *rt, uint8_t self_task_id, voi
                         err = wf_send(rt, self_task_id, AUDIO_ASR_TASK_STREAM, AUDIO_WF_MSG_PCM,
                                       (uint32_t)merged_len, merged_buf, ctx->io_timeout_ticks);
                         if (err != ESP_OK) {
-                            free(merged_buf);
+                            rt->free_fn(rt, AUDIO_ASR_TASK_STREAM, merged_buf);
                             return err;
                         }
                         merged_buf = NULL;
@@ -184,7 +187,7 @@ esp_err_t audio_wf_task_playback(struct wf_runtime *rt, uint8_t self_task_id, vo
     wf_message_t msg = {0};
     esp_err_t err = wf_recv(rt, self_task_id, &msg, ctx->io_timeout_ticks);
     if (err != ESP_OK) {
-        free(msg.ptr);
+        rt->free_fn(rt, AUDIO_WF_TASK_PLAYBACK, msg.ptr);
         return err;
     }
 
@@ -193,12 +196,12 @@ esp_err_t audio_wf_task_playback(struct wf_runtime *rt, uint8_t self_task_id, vo
     }
     if (msg.msg_id != AUDIO_PLAYER_MSG_AUDIO || !msg.ptr || msg.value == 0) {
         ESP_LOGE(TAG, "playback received invalid message: id=%d, value=%u, ptr=%p", msg.msg_id, (unsigned)msg.value, msg.ptr);
-        free(msg.ptr);
+        rt->free_fn(rt, AUDIO_WF_TASK_PLAYBACK, msg.ptr);
         return ESP_ERR_INVALID_ARG;
     }
 
     err = es8311_audio_output_large(msg.ptr, msg.value, ctx->io_timeout_ticks);
-    free(msg.ptr);
+    rt->free_fn(rt, AUDIO_WF_TASK_PLAYBACK, msg.ptr);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to play audio: %s", esp_err_to_name(err));
     }

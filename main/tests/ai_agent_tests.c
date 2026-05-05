@@ -95,8 +95,13 @@ esp_err_t ai_agent_test_online_chat(void)
         ESP_LOGE(TAG, "ai_agent_start failed: %s", esp_err_to_name(ret));
         return ret;
     }
-
-    ret = ai_agent_send_text("请用一句话介绍你自己。最多二十个字。");
+    char *response_buffer = calloc(1, 512);
+    if (!response_buffer) {
+        (void)ai_agent_deinit();
+        ESP_LOGE(TAG, "Failed to allocate memory for response buffer");
+        return ESP_ERR_NO_MEM;
+    }
+    ret = ai_agent_send_text("请用一句话介绍你自己。最多二十个字。", response_buffer, 512);
     if (ret != ESP_OK) {
         (void)ai_agent_deinit();
         ESP_LOGE(TAG, "ai_agent_send_text failed: %s", esp_err_to_name(ret));

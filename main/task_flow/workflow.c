@@ -1,5 +1,6 @@
 #include "workflow.h"
 #include <string.h>
+#include "esp_timer.h"
 #include "logger.h"
 
 #define TAG "WORKFLOW"
@@ -33,15 +34,19 @@ static void wf_worker_entry(void *param)
     wf_worker_ctx_t *ctx = (wf_worker_ctx_t *)param;
     wf_runtime_t *rt = ctx->rt;
     const wf_task_desc_t *task_desc = &rt->def->tasks[ctx->index];
-    uint8_t done_index = ctx->index;
     wf_task_done_msg_t done_msg = {
         .task_id = task_desc->id,
         .result = ESP_OK,
     };
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
+        uint64_t task_start_time = esp_timer_get_time();
         esp_err_t err = task_desc->fn(rt, task_desc->id, task_desc->arg);
+        // 释放任务申请的内存
+        rt->free_all_fn(rt, task_desc->id);
+        uint64_t task_end_time = esp_timer_get_time();
+        LOG_I(TAG, "Task %s done in %.2f seconds with result: %s",
+              task_desc->name, (task_end_time - task_start_time) / 1000000.0, esp_err_to_name(err));
         if (err != ESP_OK) {
             done_msg.result = err;
             LOG_W(TAG, "Task %s run failed: %s", task_desc->name, esp_err_to_name(err));
@@ -200,19 +205,23 @@ esp_err_t wf_runtime_run_once(wf_runtime_t *rt)
     if (!rt || !rt->def) {
         return ESP_ERR_INVALID_STATE;
     }
-
+    esp_err_t err = ESP_OK;
+    uint64_t flow_start_time = esp_timer_get_time();
     for (int i = 0; i < rt->def->step_count; i++) {
         const wf_step_desc_t *step = &rt->def->steps[i];
-        esp_err_t err = wf_run_step(rt, step);
+        err = wf_run_step(rt, step);
         if (err != ESP_OK) {
             LOG_E(TAG, "Run step[%d] %s failed: %s",
                   i, step->name ? step->name : "unnamed", esp_err_to_name(err));
-            return err;
+            break;
         } else {
             LOG_I(TAG, "Run step[%d]", i);
         }
     }
-    return ESP_OK;
+    uint64_t flow_end_time = esp_timer_get_time();
+    LOG_I(TAG, "Workflow %s completed in %.2f seconds",
+          rt->def->name ? rt->def->name : "unnamed", (flow_end_time - flow_start_time) / 1000000.0);
+    return err;
 }
 
 /* 发送任务消息：根据目标任务ID定位邮箱并投递 */
@@ -252,4 +261,79 @@ esp_err_t wf_recv(wf_runtime_t *rt, uint8_t self_task_id, wf_message_t *out_msg,
     }
 
     return (xQueueReceive(rt->mailbox[self_idx], out_msg, ticks_to_wait) == pdPASS) ? ESP_OK : ESP_ERR_TIMEOUT;
+}
+
+// task内存管理函数实现
+void *wf_alloc(struct wf_runtime *rt, uint8_t task_id, size_t size)
+{
+    if (!rt || !rt->def) {
+        return NULL;
+    }
+    int idx = wf_index_by_task_id(rt, task_id);
+    if (idx < 0 || idx >= rt->def->task_count) {
+        return NULL;
+    }
+    for (int i = 0; i < WF_TASK_MAX_MEM_ALLOC_NUM; i++) {
+        if (rt->alloc_buffer[idx][i] == NULL) {
+            rt->alloc_buffer[idx][i] = malloc(size);
+            return rt->alloc_buffer[idx][i];
+        }
+    }
+    return NULL; // 超过预设的最大内存块数量
+}
+
+void wf_free(struct wf_runtime *rt, uint8_t task_id, void *ptr)
+{
+    if (!rt || !rt->def || !ptr) {
+        return;
+    }
+    int idx = wf_index_by_task_id(rt, task_id);
+    if (idx < 0 || idx >= rt->def->task_count) {
+        return;
+    }
+    for (int i = 0; i < WF_TASK_MAX_MEM_ALLOC_NUM; i++) {
+        if (rt->alloc_buffer[idx][i] == ptr) {
+            free(rt->alloc_buffer[idx][i]);
+            rt->alloc_buffer[idx][i] = NULL;
+            return;
+        }
+    }
+}
+
+void *wf_realloc(struct wf_runtime *rt, uint8_t task_id, void *ptr, size_t new_size)
+{
+    if (!rt || !rt->def) {
+        return NULL;
+    }
+    int idx = wf_index_by_task_id(rt, task_id);
+    if (idx < 0 || idx >= rt->def->task_count) {
+        return NULL;
+    }
+    for (int i = 0; i < WF_TASK_MAX_MEM_ALLOC_NUM; i++) {
+        if (rt->alloc_buffer[idx][i] == ptr) {
+            void *new_ptr = realloc(rt->alloc_buffer[idx][i], new_size);
+            if (new_ptr) {
+                rt->alloc_buffer[idx][i] = new_ptr;
+            }
+            return new_ptr;
+        }
+    }
+    return NULL; // 原指针不在管理范围内
+}
+
+void wf_free_all(struct wf_runtime *rt, uint8_t task_id)
+{
+    if (!rt || !rt->def) {
+        return;
+    }
+    int idx = wf_index_by_task_id(rt, task_id);
+    if (idx < 0 || idx >= rt->def->task_count) {
+        return;
+    }
+    for (int i = 0; i < WF_TASK_MAX_MEM_ALLOC_NUM; i++) {
+        if (rt->alloc_buffer[idx][i]) {
+            free(rt->alloc_buffer[idx][i]);
+            rt->alloc_buffer[idx][i] = NULL;
+        }
+    }
 }

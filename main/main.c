@@ -4,28 +4,28 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 
- #include <stdio.h>
- #include <string.h>
+#include <stdio.h>
+#include <string.h>
 #include "wifi_manager.h"
- #include "sdkconfig.h"
- #include "freertos/FreeRTOS.h"
- #include "freertos/task.h"
- #include "driver/i2s_std.h"
- #include "driver/i2c_master.h"
- #include "driver/gpio.h"
- #include "esp_system.h"
- #include "esp_codec_dev_defaults.h"
- #include "esp_codec_dev.h"
- #include "esp_codec_dev_vol.h"
- #include "esp_check.h"
- #include "example_config.h"
- #include "driver_tests.h"
- #include "logger.h"
- #include "task_scheduler.h"
- #include <nvs_flash.h>
- #include "led.h"
+#include "sdkconfig.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/i2s_std.h"
+#include "driver/i2c_master.h"
+#include "driver/gpio.h"
+#include "esp_system.h"
+#include "esp_codec_dev_defaults.h"
+#include "esp_codec_dev.h"
+#include "esp_codec_dev_vol.h"
+#include "esp_check.h"
+#include "example_config.h"
+#include "driver_tests.h"
+#include "logger.h"
+#include "task_scheduler.h"
+#include <nvs_flash.h>
+#include "led.h"
 #include "task_build.h"
-
+#include "cjson_init.h"
  static const char *TAG = "main";
 // 给外放芯片供�?
 static void PowerOnBoardPowerManager(void) 
@@ -108,6 +108,7 @@ void app_main(void)
     ESP_ERROR_CHECK(init_nvs());
     // 初始化日志系�?
     logger_init();
+    cjson_setup();
     logger_set_level(LOG_LEVEL_DEBUG);
     LOG_I(TAG, "========================================");
     LOG_I(TAG, "%s v%s Starting...", "xiaolv", "1.0");

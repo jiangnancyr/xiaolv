@@ -58,6 +58,13 @@ esp_err_t task_manager_init(task_manager_t *manager, const char *name)
 
     memset(manager, 0, sizeof(*manager));
     tm_copy_name(manager->name, sizeof(manager->name), name ? name : "task_flow");
+    // 初始化 runtime 内存管理函数指针和缓冲区
+    memset(manager->runtime.alloc_buffer, 0, sizeof(manager->runtime.alloc_buffer));
+    manager->runtime.alloc_fn = wf_alloc;
+    manager->runtime.free_fn = wf_free;
+    manager->runtime.realloc_fn = wf_realloc;
+    manager->runtime.free_all_fn = wf_free_all;
+
     return ESP_OK;
 }
 
@@ -199,7 +206,11 @@ esp_err_t task_manager_run_once(task_manager_t *manager)
         return ESP_ERR_INVALID_STATE;
     }
 
-    return wf_runtime_run_once(&manager->runtime);
+    esp_err_t err = wf_runtime_run_once(&manager->runtime);
+    for(int i = 0; i < manager->task_count; i++) {
+         manager->runtime.free_all_fn(&manager->runtime, manager->tasks[i].id); // 释放所有任务的内存，假设这里的task_id参数不影响实际释放逻辑
+    }
+    return err;
 }
 
 esp_err_t task_manager_stop(task_manager_t *manager)

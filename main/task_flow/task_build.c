@@ -17,7 +17,7 @@ static audio_wf_ctx_t ctx = {0};
 
 esp_err_t start_chat_flow(void)
 {
-    ESP_RETURN_ON_ERROR(task_manager_init(&g_task_manager, "demo_flow"), TAG, "task manager init failed");
+    ESP_RETURN_ON_ERROR(task_manager_init(&g_task_manager, "ai_chat_flow"), TAG, "task manager init failed");
 
 
     es8311_audio_cfg_t cfg = {
@@ -27,7 +27,7 @@ esp_err_t start_chat_flow(void)
         .out_vol = 60,
         .in_gain_db = 37,
     };
-    ESP_RETURN_ON_ERROR(audio_wf_ctx_init(&ctx, &cfg, 1024, pdMS_TO_TICKS(500)), TAG, "audio_wf_ctx_init failed");
+    ESP_RETURN_ON_ERROR(audio_wf_ctx_init(&ctx, &cfg, 1600 * 2, pdMS_TO_TICKS(500)), TAG, "audio_wf_ctx_init failed");
     vTaskDelay(pdMS_TO_TICKS(1000));
     // 音频工作流任务
     ESP_RETURN_ON_ERROR(task_manager_add_task(&g_task_manager, AUDIO_WF_TASK_CAPTURE, &(tm_task_config_t){
@@ -108,6 +108,7 @@ esp_err_t start_chat_flow(void)
         } else {
             LOG_I(TAG, "task_manager_run_once success");
         }
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
     return ESP_FAIL;
 }
