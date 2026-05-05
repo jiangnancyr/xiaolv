@@ -1,0 +1,22 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build ESP32 with Multicore", // 任务名称
+            "type": "shell",
+            "command": "idf.py",
+            "args": [
+                "-j", "6",   // 这里的数字根据你的CPU核心数调整，例如设为CPU线程数-2
+                "build"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true   // 设为默认构建任务
+            },
+            "options": {
+                "cwd": "${workspaceFolder}" // 确保在项目根目录执行
+            },
+            "problemMatcher": []
+        }
+    ]
+}

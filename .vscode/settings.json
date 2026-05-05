@@ -3,16 +3,31 @@
   "idf.openOcdConfigs": [
     "board/esp32s3-builtin.cfg"
   ],
-  "idf.portWin": "COM7",
-  "idf.currentSetup": "d:\\esp32tool\\v5.5.3\\esp-idf",
+  "idf.portWin": "COM3",
+  "idf.currentSetup": "D:/Espressif/frameworks/esp-idf-v5.5.3/",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32s3"
   },
-  "clangd.path": "D:\\esp32tool\\Espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=e:\\cursor\\xiaolv\\build"
+    "--compile-commands-dir=d:\\cursor\\xiaolv\\build"
   ],
-  "idf.flashType": "UART"
+  "idf.flashType": "UART",
+  "highlightwords.colors": [
+    { "light": "#b3d9ff", "dark": "cyan" },
+    { "light": "#e6ffb3", "dark": "pink" },
+    { "light": "#b3b3ff", "dark": "lightgreen" },
+    { "light": "#ffd9b3", "dark": "magenta" },
+    { "light": "#ffb3ff", "dark": "cornflowerblue" },
+    { "light": "#b3ffb3", "dark": "orange" },
+    { "light": "#ffff80", "dark": "green" },
+    { "light": "#d1e0e0", "dark": "red" }
+  ],
+  "highlightwords.box": {
+    "light": true,
+    "dark": false
+  },
+  "highlightwords.defaultMode": 1,  // 1=全词匹配，避免误匹配
+  "highlightwords.showSidebar": true
 }
